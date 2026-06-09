@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>AlarmFlow</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0d0f14;
+    --surface:   #161a22;
+    --card:      #1e2330;
+    --border:    #2a2f3e;
+    --accent:    #6c63ff;
+    --accent2:   #a78bfa;
+    --danger:    #ff4f6e;
+    --text:      #eef0f6;
+    --muted:     #6b7280;
+    --active-bg: #6c63ff22;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    overflow: hidden;
+  }
+
+  /* ── Layout ── */
+  .app {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    max-width: 430px;
+    margin: 0 auto;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* ── Header ── */
+  .header {
+    padding: 20px 24px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .header-title {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+  .header-title span { color: var(--accent2); }
+
+  /* ── Clock ── */
+  .clock-section {
+    text-align: center;
+    padding: 16px 24px 20px;
+    flex-shrink: 0;
+  }
+  .clock-time {
+    font-size: clamp(52px, 18vw, 72px);
+    font-weight: 800;
+    letter-spacing: -3px;
+    line-height: 1;
+    background: linear-gradient(135deg, #fff 40%, var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .clock-date {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 6px;
+    letter-spacing: 0.5px;
+    font-weight: 500;
+  }
+
+  /* ── Alarm List ── */
+  .alarm-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 16px;
+    scrollbar-width: none;
+  }
+  .alarm-scroll::-webkit-scrollbar { display: none; }
+
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    padding: 0 8px 10px;
+  }
+
+  .alarm-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 18px 20px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .alarm-card.active {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent)33, 0 4px 24px var(--accent)22;
+  }
+  .alarm-card.active::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: linear-gradient(180deg, var(--accent), var(--accent2));
+    border-radius: 3px 0 0 3px;
+  }
+  .alarm-card.ringing {
+    animation: ring-pulse 0.6s ease-in-out infinite alternate;
+    border-color: var(--danger);
+    box-shadow: 0 0 0 1px var(--danger)55, 0 4px 32px var(--danger)33;
+  }
+  @keyframes ring-pulse {
+    from { transform: translateX(0); }
+    to   { transform: translateX(4px); }
+  }
+
+  .alarm-info { flex: 1; min-width: 0; }
+  .alarm-time-text {
+    font-size: 32px;
+    font-weight: 800;
+    letter-spacing: -1.5px;
+    line-height: 1;
+  }
+  .alarm-card.active .alarm-time-text { color: var(--text); }
+  .alarm-card:not(.active) .alarm-time-text { color: var(--muted); }
+  .alarm-card.ringing .alarm-time-text { color: var(--danger); }
+
+  .alarm-label-text {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+    margin-top: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .alarm-days {
+    display: flex;
+    gap: 4px;
+    margin-top: 7px;
+    flex-wrap: wrap;
+  }
+  .day-chip {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: 2px 6px;
+    border-radius: 20px;
+    text-transform: uppercase;
+  }
+  .day-chip.on  { background: var(--active-bg); color: var(--accent2); border: 1px solid var(--accent)55; }
+  .day-chip.off { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+
+  .alarm-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+  }
+  .toggle {
+    width: 44px; height: 24px;
+    background: var(--border);
+    border-radius: 12px;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.25s;
+    border: none;
+    flex-shrink: 0;
+  }
+  .toggle.on { background: var(--accent); }
+  .toggle::after {
+    content: '';
+    position: absolute;
+    width: 18px; height: 18px;
+    background: #fff;
+    border-radius: 50%;
+    top: 3px; left: 3px;
+    transition: transform 0.25s cubic-bezier(.34,1.56,.64,1);
+    box-shadow: 0 1px 4px #0005;
+  }
+  .toggle.on::after { transform: translateX(20px); }
+
+  .delete-btn {
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
+  }
+  .delete-btn:hover { background: var(--danger)22; color: var(--danger); border-color: var(--danger)55; }
+
+  .empty-state {
+    text-align: center;
+    padding: 60px 24px;
+    color: var(--muted);
+  }
+  .empty-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.4; }
+  .empty-text { font-size: 14px; font-weight: 500; }
+
+  /* ── Add Button ── */
+  .fab {
+    position: absolute;
+    bottom: 24px;
+    right: 24px;
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none;
+    color: #fff;
+    font-size: 28px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 24px var(--accent)55;
+    transition: transform 0.2s cubic-bezier(.34,1.56,.64,1), box-shadow 0.2s;
+    z-index: 10;
+  }
+  .fab:hover  { transform: scale(1.1); }
+  .fab:active { transform: scale(0.95); }
+
+  /* ── Modal ── */
+  .overlay {
+    position: fixed; inset: 0;
+    background: #0009;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    display: flex; align-items: flex-end;
+    z-index: 100;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+  .overlay.open { opacity: 1; pointer-events: all; }
+
+  .sheet {
+    background: var(--surface);
+    border-top-left-radius: 28px;
+    border-top-right-radius: 28px;
+    padding: 20px 24px 36px;
+    width: 100%;
+    max-width: 430px;
+    margin: 0 auto;
+    transform: translateY(100%);
+    transition: transform 0.35s cubic-bezier(.22,1,.36,1);
+    border: 1px solid var(--border);
+    border-bottom: none;
+  }
+  .overlay.open .sheet { transform: translateY(0); }
+
+  .sheet-handle {
+    width: 40px; height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin: 0 auto 20px;
+  }
+  .sheet-title {
+    font-size: 18px;
+    font-weight: 800;
+    margin-bottom: 22px;
+    letter-spacing: -0.5px;
+  }
+
+  .form-group { margin-bottom: 18px; }
+  label {
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  input[type="time"],
+  input[type="text"] {
+    width: 100%;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    -webkit-appearance: none;
+    color-scheme: dark;
+  }
+  input[type="time"]:focus,
+  input[type="text"]:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent)22;
+  }
+
+  .days-picker {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .day-toggle {
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.18s;
+    font-family: 'Syne', sans-serif;
+    letter-spacing: 0.2px;
+  }
+  .day-toggle.selected {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    box-shadow: 0 2px 12px var(--accent)44;
+  }
+
+  .sound-select {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .sound-opt {
+    padding: 8px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--muted);
+    font-family: 'Syne', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.18s;
+  }
+  .sound-opt.selected {
+    background: var(--active-bg);
+    border-color: var(--accent);
+    color: var(--accent2);
+  }
+
+  .btn-row {
+    display: flex;
+    gap: 12px;
+    margin-top: 8px;
+  }
+  .btn {
+    flex: 1;
+    padding: 15px;
+    border-radius: 14px;
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    transition: transform 0.15s, opacity 0.15s;
+  }
+  .btn:active { transform: scale(0.97); opacity: 0.9; }
+  .btn-cancel { background: var(--card); color: var(--muted); border: 1px solid var(--border); }
+  .btn-save   { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; box-shadow: 0 4px 16px var(--accent)44; }
+
+  /* ── Ringing overlay ── */
+  .ring-overlay {
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse at center, #1e0a2e 0%, #0d0f14 70%);
+    z-index: 200;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.35s;
+    padding: 40px 24px;
+  }
+  .ring-overlay.show { opacity: 1; pointer-events: all; }
+
+  .ring-waves {
+    position: relative;
+    width: 120px; height: 120px;
+    margin-bottom: 32px;
+  }
+  .wave {
+    position: absolute; inset: 0;
+    border-radius: 50%;
+    border: 2px solid var(--danger);
+    animation: wave-out 2s ease-out infinite;
+    opacity: 0;
+  }
+  .wave:nth-child(2) { animation-delay: 0.5s; }
+  .wave:nth-child(3) { animation-delay: 1s; }
+  .wave:nth-child(4) { animation-delay: 1.5s; }
+  @keyframes wave-out {
+    0%   { transform: scale(0.6); opacity: 0.8; }
+    100% { transform: scale(1.8); opacity: 0; }
+  }
+  .ring-bell {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 48px;
+    animation: bell-swing 0.4s ease-in-out infinite alternate;
+  }
+  @keyframes bell-swing {
+    from { transform: rotate(-20deg); }
+    to   { transform: rotate(20deg); }
+  }
+  .ring-alarm-time {
+    font-size: 64px;
+    font-weight: 800;
+    letter-spacing: -3px;
+    line-height: 1;
+    color: #fff;
+    margin-bottom: 8px;
+  }
+  .ring-alarm-label {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--muted);
+    margin-bottom: 48px;
+  }
+  .ring-btn-row { display: flex; gap: 16px; width: 100%; max-width: 320px; }
+  .ring-btn {
+    flex: 1;
+    padding: 18px;
+    border-radius: 18px;
+    border: none;
+    font-family: 'Syne', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.15s;
+  }
+  .ring-btn:active { transform: scale(0.96); }
+  .btn-snooze { background: var(--card); color: var(--text); border: 1px solid var(--border); }
+  .btn-dismiss { background: var(--danger); color: #fff; box-shadow: 0 4px 24px var(--danger)55; }
+
+  /* ── Footer ── */
+  .footer {
+    text-align: center;
+    padding: 10px 0 14px;
+    font-size: 10px;
+    color: var(--muted);
+    font-weight: 500;
+    letter-spacing: 0.3px;
+    flex-shrink: 0;
+  }
+  .footer a { color: var(--accent2); text-decoration: none; }
+  .footer a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-title">Alarm<span>Flow</span></div>
+    <div style="font-size:13px;color:var(--muted);font-weight:600;" id="alarm-count">0 alarms</div>
+  </div>
+
+  <!-- Clock -->
+  <div class="clock-section">
+    <div class="clock-time" id="clock-display">00:00:00</div>
+    <div class="clock-date" id="clock-date"></div>
+  </div>
+
+  <!-- Alarm List -->
+  <div class="alarm-scroll">
+    <div class="section-label" id="alarm-section-label" style="display:none;">Scheduled Alarms</div>
+    <div id="alarm-list"></div>
+  </div>
+
+  <!-- FAB -->
+  <button class="fab" id="open-modal" aria-label="Add alarm">＋</button>
+
+  <!-- Footer -->
+  <div class="footer">Developed by: <a href="https://www.linkedin.com/in/md-nazmul-hasan-tonmoy/" target="_blank">MD NAZMUL HASAN</a></div>
+</div>
+
+<!-- Add Alarm Modal -->
+<div class="overlay" id="overlay">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">New Alarm</div>
+
+    <div class="form-group">
+      <label>Time</label>
+      <input type="time" id="alarm-time-input" />
+    </div>
+
+    <div class="form-group">
+      <label>Label</label>
+      <input type="text" id="alarm-label-input" placeholder="e.g. Morning run" maxlength="30" />
+    </div>
+
+    <div class="form-group">
+      <label>Repeat</label>
+      <div class="days-picker" id="days-picker">
+        <button class="day-toggle" data-day="0">S</button>
+        <button class="day-toggle" data-day="1">M</button>
+        <button class="day-toggle" data-day="2">T</button>
+        <button class="day-toggle" data-day="3">W</button>
+        <button class="day-toggle" data-day="4">T</button>
+        <button class="day-toggle" data-day="5">F</button>
+        <button class="day-toggle" data-day="6">S</button>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Sound</label>
+      <div class="sound-select" id="sound-select">
+        <button class="sound-opt selected" data-sound="beep">Beep</button>
+        <button class="sound-opt" data-sound="digital">Digital</button>
+        <button class="sound-opt" data-sound="chime">Chime</button>
+        <button class="sound-opt" data-sound="pulse">Pulse</button>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-cancel" id="cancel-btn">Cancel</button>
+      <button class="btn btn-save"   id="save-btn">Save Alarm</button>
+    </div>
+  </div>
+</div>
+
+<!-- Ringing Overlay -->
+<div class="ring-overlay" id="ring-overlay">
+  <div class="ring-waves">
+    <div class="wave"></div>
+    <div class="wave"></div>
+    <div class="wave"></div>
+    <div class="wave"></div>
+    <div class="ring-bell">🔔</div>
+  </div>
+  <div class="ring-alarm-time" id="ring-time-display">07:00</div>
+  <div class="ring-alarm-label" id="ring-label-display">Alarm</div>
+  <div class="ring-btn-row">
+    <button class="ring-btn btn-snooze"  id="snooze-btn">Snooze 5m</button>
+    <button class="ring-btn btn-dismiss" id="dismiss-btn">Dismiss</button>
+  </div>
+</div>
+
+<script>
+// ── Audio Engine ──────────────────────────────────────────────────────────────
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let ctx = null;
+let alarmInterval = null;
+
+function ensureCtx() {
+  if (!ctx) ctx = new AudioCtx();
+  if (ctx.state === 'suspended') ctx.resume();
+}
+
+function playBeep() {
+  ensureCtx();
+  const o = ctx.createOscillator();
+  const g = ctx.createGain();
+  o.connect(g); g.connect(ctx.destination);
+  o.type = 'square';
+  o.frequency.setValueAtTime(880, ctx.currentTime);
+  g.gain.setValueAtTime(0.3, ctx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+  o.start(); o.stop(ctx.currentTime + 0.2);
+}
+
+function playDigital() {
+  ensureCtx();
+  [0, 0.15, 0.3].forEach(t => {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(1200, ctx.currentTime + t);
+    g.gain.setValueAtTime(0.25, ctx.currentTime + t);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.12);
+    o.start(ctx.currentTime + t);
+    o.stop(ctx.currentTime + t + 0.12);
+  });
+}
+
+function playChime() {
+  ensureCtx();
+  const freqs = [523, 659, 784, 1047];
+  freqs.forEach((f, i) => {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.type = 'sine';
+    o.frequency.setValueAtTime(f, ctx.currentTime + i * 0.18);
+    g.gain.setValueAtTime(0.3, ctx.currentTime + i * 0.18);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.18 + 0.6);
+    o.start(ctx.currentTime + i * 0.18);
+    o.stop(ctx.currentTime + i * 0.18 + 0.6);
+  });
+}
+
+function playPulse() {
+  ensureCtx();
+  [0, 0.35].forEach(t => {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.type = 'triangle';
+    o.frequency.setValueAtTime(660, ctx.currentTime + t);
+    o.frequency.linearRampToValueAtTime(880, ctx.currentTime + t + 0.3);
+    g.gain.setValueAtTime(0.35, ctx.currentTime + t);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.3);
+    o.start(ctx.currentTime + t);
+    o.stop(ctx.currentTime + t + 0.3);
+  });
+}
+
+const sounds = { beep: playBeep, digital: playDigital, chime: playChime, pulse: playPulse };
+
+function startAlarmSound(type) {
+  stopAlarmSound();
+  const fn = sounds[type] || playBeep;
+  fn();
+  alarmInterval = setInterval(fn, 1200);
+}
+
+function stopAlarmSound() {
+  if (alarmInterval) { clearInterval(alarmInterval); alarmInterval = null; }
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let alarms = JSON.parse(localStorage.getItem('alarmflow_alarms') || '[]');
+let currentRingAlarm = null;
+const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const DAY_SHORT  = ['S','M','T','W','T','F','S'];
+
+function saveAlarms() {
+  localStorage.setItem('alarmflow_alarms', JSON.stringify(alarms));
+}
+
+// ── Clock ─────────────────────────────────────────────────────────────────────
+function updateClock() {
+  const now  = new Date();
+  const hh   = String(now.getHours()).padStart(2,'0');
+  const mm   = String(now.getMinutes()).padStart(2,'0');
+  const ss   = String(now.getSeconds()).padStart(2,'0');
+  document.getElementById('clock-display').textContent = `${hh}:${mm}:${ss}`;
+  document.getElementById('clock-date').textContent =
+    now.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
+  checkAlarms(now);
+}
+
+// ── Check Alarms ──────────────────────────────────────────────────────────────
+const firedThisMinute = new Set();
+
+function checkAlarms(now) {
+  const hh  = String(now.getHours()).padStart(2,'0');
+  const mm  = String(now.getMinutes()).padStart(2,'0');
+  const ss  = now.getSeconds();
+  const day = now.getDay(); // 0=Sun
+
+  alarms.forEach(a => {
+    if (!a.active) return;
+    if (a.time !== `${hh}:${mm}`) return;
+    if (ss !== 0) return; // trigger only on exact minute boundary
+    const key = `${a.id}-${hh}:${mm}`;
+    if (firedThisMinute.has(key)) return;
+
+    const shouldRing = a.days.length === 0 || a.days.includes(day);
+    if (!shouldRing) return;
+
+    firedThisMinute.add(key);
+    // clean up fired keys older than 1 min
+    setTimeout(() => firedThisMinute.delete(key), 62000);
+
+    triggerAlarm(a);
+  });
+}
+
+// ── Ring Alarm ────────────────────────────────────────────────────────────────
+function triggerAlarm(alarm) {
+  currentRingAlarm = alarm;
+  document.getElementById('ring-time-display').textContent = alarm.time;
+  document.getElementById('ring-label-display').textContent = alarm.label || 'Alarm';
+  document.getElementById('ring-overlay').classList.add('show');
+  startAlarmSound(alarm.sound);
+}
+
+document.getElementById('dismiss-btn').addEventListener('click', () => {
+  stopAlarmSound();
+  document.getElementById('ring-overlay').classList.remove('show');
+  // If not repeating, deactivate
+  if (currentRingAlarm && currentRingAlarm.days.length === 0) {
+    currentRingAlarm.active = false;
+    saveAlarms();
+    renderAlarms();
+  }
+  currentRingAlarm = null;
+});
+
+document.getElementById('snooze-btn').addEventListener('click', () => {
+  stopAlarmSound();
+  document.getElementById('ring-overlay').classList.remove('show');
+  if (!currentRingAlarm) return;
+  // set a one-off snooze 5 min from now
+  const now = new Date();
+  now.setMinutes(now.getMinutes() + 5);
+  const sh = String(now.getHours()).padStart(2,'0');
+  const sm = String(now.getMinutes()).padStart(2,'0');
+  const snooze = {
+    id: 'snooze_' + Date.now(),
+    time: `${sh}:${sm}`,
+    label: (currentRingAlarm.label || 'Alarm') + ' (Snoozed)',
+    days: [],
+    sound: currentRingAlarm.sound,
+    active: true,
+    snooze: true,
+  };
+  alarms.push(snooze);
+  saveAlarms();
+  renderAlarms();
+  currentRingAlarm = null;
+});
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function renderAlarms() {
+  const list = document.getElementById('alarm-list');
+  const label = document.getElementById('alarm-section-label');
+  const count = document.getElementById('alarm-count');
+
+  count.textContent = alarms.length === 1 ? '1 alarm' : `${alarms.length} alarms`;
+
+  if (alarms.length === 0) {
+    label.style.display = 'none';
+    list.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">⏰</div>
+      <div class="empty-text">No alarms yet.<br>Tap + to add one.</div>
+    </div>`;
+    return;
+  }
+
+  label.style.display = 'block';
+  const sorted = [...alarms].sort((a,b) => a.time.localeCompare(b.time));
+  list.innerHTML = sorted.map(a => {
+    const [hRaw, m] = a.time.split(':');
+    const h = parseInt(hRaw);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12  = ((h % 12) || 12);
+    const dayChips = DAY_SHORT.map((d, i) => {
+      const on = a.days.includes(i) ? 'on' : 'off';
+      return `<span class="day-chip ${on}">${d}</span>`;
+    }).join('');
+    const daysRow = a.days.length > 0
+      ? `<div class="alarm-days">${dayChips}</div>`
+      : `<div class="alarm-days"><span class="day-chip off" style="padding:2px 10px;">Once</span></div>`;
+
+    return `<div class="alarm-card ${a.active ? 'active' : ''}" data-id="${a.id}">
+      <div class="alarm-info">
+        <div class="alarm-time-text">${h12}:${m} <span style="font-size:15px;font-weight:600;color:var(--muted)">${ampm}</span></div>
+        <div class="alarm-label-text">${a.label || 'Alarm'}</div>
+        ${daysRow}
+      </div>
+      <div class="alarm-right">
+        <button class="toggle ${a.active ? 'on' : ''}" data-id="${a.id}" aria-label="Toggle alarm"></button>
+        <button class="delete-btn" data-id="${a.id}" aria-label="Delete alarm">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  // events
+  list.querySelectorAll('.toggle').forEach(btn => {
+    btn.addEventListener('click', e => {
+      const id = e.currentTarget.dataset.id;
+      const alarm = alarms.find(a => a.id === id);
+      if (alarm) { alarm.active = !alarm.active; saveAlarms(); renderAlarms(); }
+    });
+  });
+  list.querySelectorAll('.delete-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      const id = e.currentTarget.dataset.id;
+      alarms = alarms.filter(a => a.id !== id);
+      saveAlarms(); renderAlarms();
+    });
+  });
+}
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
+let selectedDays  = [];
+let selectedSound = 'beep';
+
+document.getElementById('open-modal').addEventListener('click', () => {
+  ensureCtx(); // unlock audio on first tap
+  selectedDays = [];
+  selectedSound = 'beep';
+  document.getElementById('alarm-time-input').value = '';
+  document.getElementById('alarm-label-input').value = '';
+  document.querySelectorAll('.day-toggle').forEach(b => b.classList.remove('selected'));
+  document.querySelectorAll('.sound-opt').forEach(b => {
+    b.classList.toggle('selected', b.dataset.sound === 'beep');
+  });
+  document.getElementById('overlay').classList.add('open');
+});
+
+function closeModal() {
+  document.getElementById('overlay').classList.remove('open');
+}
+
+document.getElementById('cancel-btn').addEventListener('click', closeModal);
+document.getElementById('overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('overlay')) closeModal();
+});
+
+document.getElementById('days-picker').addEventListener('click', e => {
+  const btn = e.target.closest('.day-toggle');
+  if (!btn) return;
+  const day = parseInt(btn.dataset.day);
+  if (selectedDays.includes(day)) {
+    selectedDays = selectedDays.filter(d => d !== day);
+    btn.classList.remove('selected');
+  } else {
+    selectedDays.push(day);
+    btn.classList.add('selected');
+  }
+});
+
+document.getElementById('sound-select').addEventListener('click', e => {
+  const btn = e.target.closest('.sound-opt');
+  if (!btn) return;
+  selectedSound = btn.dataset.sound;
+  document.querySelectorAll('.sound-opt').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  (sounds[selectedSound] || playBeep)(); // preview
+});
+
+document.getElementById('save-btn').addEventListener('click', () => {
+  const time  = document.getElementById('alarm-time-input').value;
+  const label = document.getElementById('alarm-label-input').value.trim();
+  if (!time) { document.getElementById('alarm-time-input').focus(); return; }
+  alarms.push({
+    id:     'alarm_' + Date.now(),
+    time,
+    label:  label || 'Alarm',
+    days:   [...selectedDays],
+    sound:  selectedSound,
+    active: true,
+  });
+  saveAlarms();
+  renderAlarms();
+  closeModal();
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+renderAlarms();
+updateClock();
+setInterval(updateClock, 1000);
+</script>
+</body>
+</html>
