@@ -2,7 +2,7 @@
 
 AlarmFlow is a sleek, premium, iOS-inspired web alarm clock application designed with a focus on smooth interactions, crisp typography, and high performance. It includes dynamic real-time clock monitoring, multi-sound custom synthesizers, and complete state persistence.
 
-Live Project Link: [Your Hosted Link Here] (e.g., GitHub Pages)
+Live Project Link: isn't hosted yet broh!!!
 
 ---
 
