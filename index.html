@@ -98,7 +98,6 @@
     line-height: 1;
     color: var(--text);
     white-space: nowrap;
-    /* FIX: no overflow:hidden, enough width */
     display: block;
     width: 100%;
   }
@@ -135,7 +134,6 @@
     padding: 0 4px 10px;
   }
 
-  /* iOS-style grouped list */
   .alarm-group {
     background: var(--surface);
     border-radius: 16px;
@@ -149,12 +147,16 @@
     gap: 14px;
     position: relative;
     transition: background 0.15s;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .alarm-row:active {
+    background: rgba(255,255,255,0.05);
   }
   .alarm-row:not(:last-child)::after {
     content: '';
     position: absolute;
-    bottom: 0;
-    left: 16px; right: 0;
+    bottom: 0; left: 16px; right: 0;
     height: 0.5px;
     background: var(--border);
   }
@@ -609,13 +611,13 @@
   <div class="footer">Developed by: <a href="https://www.linkedin.com/in/md-nazmul-hasan-tonmoy/" target="_blank">MD NAZMUL HASAN</a></div>
 </div>
 
-<!-- Add Alarm Sheet -->
+<!-- Add/Edit Alarm Sheet -->
 <div class="overlay" id="overlay">
   <div class="sheet">
     <div class="sheet-handle"></div>
     <div class="sheet-header">
       <button class="sheet-cancel" id="cancel-btn">Cancel</button>
-      <span class="sheet-title-text">Add Alarm</span>
+      <span class="sheet-title-text" id="modal-title">Add Alarm</span>
       <button class="sheet-save" id="save-btn">Save</button>
     </div>
 
@@ -743,6 +745,7 @@ function stopAlarmSound() {
 // ── State ──────────────────────────────────────────────────────────────────────
 let alarms = JSON.parse(localStorage.getItem('alarmflow_alarms') || '[]');
 let currentRingAlarm = null;
+let editingAlarmId = null;
 const DAY_SHORT = ['S','M','T','W','T','F','S'];
 const DAY_NAMES_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 function saveAlarms() { localStorage.setItem('alarmflow_alarms', JSON.stringify(alarms)); }
@@ -754,11 +757,9 @@ function updateClock() {
   const mm  = String(now.getMinutes()).padStart(2,'0');
   const ss  = String(now.getSeconds()).padStart(2,'0');
 
-  // Status bar: 12h no leading zero
   const sh = now.getHours() % 12 || 12;
   document.getElementById('status-time').textContent = `${sh}:${mm}`;
 
-  // Main clock: HH:MM and :SS separately (fixes cutoff bug)
   document.getElementById('clock-hhmm').textContent = `${hh}:${mm}`;
   document.getElementById('clock-ss').textContent   = `:${ss}`;
 
@@ -839,7 +840,6 @@ function renderAlarms() {
   lbl.style.display = 'block';
   const sorted = [...alarms].sort((a,b) => a.time.localeCompare(b.time));
 
-  // Group all alarms in one iOS-style card
   list.innerHTML = `<div class="alarm-group">${sorted.map(a => {
     const [hRaw, m] = a.time.split(':');
     const h = parseInt(hRaw), h12 = (h%12)||12, ampm = h>=12?'PM':'AM';
@@ -864,18 +864,34 @@ function renderAlarms() {
     </div>`;
   }).join('')}</div>`;
 
+  // Toggle active/inactive
   list.querySelectorAll('.toggle').forEach(btn => {
     btn.addEventListener('click', e => {
+      e.stopPropagation();
       const id = e.currentTarget.dataset.id;
       const alarm = alarms.find(a => a.id === id);
       if (alarm) { alarm.active = !alarm.active; saveAlarms(); renderAlarms(); }
     });
   });
+
+  // Delete alarm
   list.querySelectorAll('.delete-btn').forEach(btn => {
     btn.addEventListener('click', e => {
+      e.stopPropagation();
       const id = e.currentTarget.dataset.id;
       alarms = alarms.filter(a => a.id !== id);
       saveAlarms(); renderAlarms();
+    });
+  });
+
+  // Edit alarm — tap the row (not toggle or delete button)
+  list.querySelectorAll('.alarm-row').forEach(row => {
+    row.addEventListener('click', e => {
+      // Don't trigger edit if clicking toggle or delete
+      if (e.target.closest('.toggle') || e.target.closest('.delete-btn')) return;
+      const id = row.dataset.id;
+      const alarm = alarms.find(a => a.id === id);
+      if (alarm) openEditModal(alarm);
     });
   });
 }
@@ -883,27 +899,73 @@ function renderAlarms() {
 // ── Modal ──────────────────────────────────────────────────────────────────────
 let selectedDays = [], selectedSound = 'beep';
 
-document.getElementById('open-modal').addEventListener('click', () => {
-  ensureCtx();
-  selectedDays = []; selectedSound = 'beep';
+function openAddModal() {
+  editingAlarmId = null;
+  document.getElementById('modal-title').textContent = 'Add Alarm';
+  document.getElementById('save-btn').textContent = 'Save';
+  
+  selectedDays = []; 
+  selectedSound = 'beep';
   document.getElementById('alarm-time-input').value = '';
   document.getElementById('alarm-label-input').value = '';
   document.querySelectorAll('.day-toggle').forEach(b => b.classList.remove('selected'));
   document.querySelectorAll('.sound-opt').forEach(b =>
     b.classList.toggle('selected', b.dataset.sound === 'beep'));
   document.getElementById('overlay').classList.add('open');
+}
+
+function openEditModal(alarm) {
+  editingAlarmId = alarm.id;
+  document.getElementById('modal-title').textContent = 'Edit Alarm';
+  document.getElementById('save-btn').textContent = 'Done';
+  
+  selectedDays = [...alarm.days];
+  selectedSound = alarm.sound;
+  
+  document.getElementById('alarm-time-input').value = alarm.time;
+  document.getElementById('alarm-label-input').value = alarm.label || '';
+  
+  document.querySelectorAll('.day-toggle').forEach(btn => {
+    const day = parseInt(btn.dataset.day);
+    btn.classList.toggle('selected', selectedDays.includes(day));
+  });
+  
+  document.querySelectorAll('.sound-opt').forEach(btn => {
+    btn.classList.toggle('selected', btn.dataset.sound === selectedSound);
+  });
+  
+  document.getElementById('overlay').classList.add('open');
+}
+
+function closeModal() { 
+  document.getElementById('overlay').classList.remove('open'); 
+  editingAlarmId = null;
+}
+
+document.getElementById('open-modal').addEventListener('click', () => {
+  ensureCtx();
+  openAddModal();
 });
-function closeModal() { document.getElementById('overlay').classList.remove('open'); }
+
 document.getElementById('cancel-btn').addEventListener('click', closeModal);
+
 document.getElementById('overlay').addEventListener('click', e => {
   if (e.target === document.getElementById('overlay')) closeModal();
 });
+
 document.getElementById('days-picker').addEventListener('click', e => {
   const btn = e.target.closest('.day-toggle'); if (!btn) return;
   const day = parseInt(btn.dataset.day);
-  if (selectedDays.includes(day)) { selectedDays = selectedDays.filter(d=>d!==day); btn.classList.remove('selected'); }
-  else { selectedDays.push(day); btn.classList.add('selected'); }
+  if (selectedDays.includes(day)) { 
+    selectedDays = selectedDays.filter(d=>d!==day); 
+    btn.classList.remove('selected'); 
+  }
+  else { 
+    selectedDays.push(day); 
+    btn.classList.add('selected'); 
+  }
 });
+
 document.getElementById('sound-select').addEventListener('click', e => {
   const btn = e.target.closest('.sound-opt'); if (!btn) return;
   selectedSound = btn.dataset.sound;
@@ -911,13 +973,36 @@ document.getElementById('sound-select').addEventListener('click', e => {
   btn.classList.add('selected');
   (sounds[selectedSound] || playBeep)();
 });
+
 document.getElementById('save-btn').addEventListener('click', () => {
   const time = document.getElementById('alarm-time-input').value;
   const label = document.getElementById('alarm-label-input').value.trim();
   if (!time) { document.getElementById('alarm-time-input').focus(); return; }
-  alarms.push({ id:'alarm_'+Date.now(), time, label:label||'Alarm',
-    days:[...selectedDays], sound:selectedSound, active:true });
-  saveAlarms(); renderAlarms(); closeModal();
+  
+  if (editingAlarmId) {
+    // Edit existing alarm
+    const alarm = alarms.find(a => a.id === editingAlarmId);
+    if (alarm) {
+      alarm.time = time;
+      alarm.label = label || 'Alarm';
+      alarm.days = [...selectedDays];
+      alarm.sound = selectedSound;
+    }
+  } else {
+    // Add new alarm
+    alarms.push({ 
+      id:'alarm_'+Date.now(), 
+      time, 
+      label:label||'Alarm',
+      days:[...selectedDays], 
+      sound:selectedSound, 
+      active:true 
+    });
+  }
+  
+  saveAlarms(); 
+  renderAlarms(); 
+  closeModal();
 });
 
 // ── Init ───────────────────────────────────────────────────────────────────────
